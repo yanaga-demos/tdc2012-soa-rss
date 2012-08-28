@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:int="http://www.springframework.org/schema/integration" xmlns:int-twitter="http://www.springframework.org/schema/integration/twitter"
+	xmlns:int-feed="http://www.springframework.org/schema/integration/feed"
+	xsi:schemaLocation="http://www.springframework.org/schema/integration/feed http://www.springframework.org/schema/integration/feed/spring-integration-feed-2.1.xsd
+		http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
+		http://www.springframework.org/schema/integration/twitter http://www.springframework.org/schema/integration/twitter/spring-integration-twitter.xsd">
+	<bean id="twitterTemplate" class="org.springframework.social.twitter.api.impl.TwitterTemplate">
+		<constructor-arg value="consumerKey" />
+		<constructor-arg value="consumerSecret" />
+		<constructor-arg value="accessToken" />
+		<constructor-arg value="accessTokenSecret" />
+	</bean>
+
+	<bean id="linkedInTemplate" class="org.springframework.social.linkedin.api.impl.LinkedInTemplate">
+		<constructor-arg value="consumerKey" />
+		<constructor-arg value="consumerSecret" />
+		<constructor-arg value="accessToken" />
+		<constructor-arg value="accessTokenSecret" />
+	</bean>
+
+	<int-feed:inbound-channel-adapter id="blogAtomFeed" channel="feedChannel"
+		url="http://tdc2012-soa.blogspot.com/feeds/posts/default">
+		<int:poller fixed-rate="2500" max-messages-per-poll="5" />
+	</int-feed:inbound-channel-adapter>
+
+	<int:filter id="idempotent" input-channel="feedChannel" output-channel="linkChannel">
+		<bean class="br.com.yanaga.tdc2012.soa.rss.integration.IdempotentFilter" />
+	</int:filter>
+
+	<int:transformer id="entryToMessage" input-channel="linkChannel" output-channel="messagesChannel">
+		<bean class="br.com.yanaga.tdc2012.soa.rss.integration.EntryToMessageTransformer" />
+	</int:transformer>
+
+	<int:publish-subscribe-channel id="messagesChannel"/>
+
+	<int:channel id="filaTwitterChannel">
+		<int:queue capacity="20"/>
+	</int:channel>
+
+	<int-twitter:outbound-channel-adapter id="filaTwitterChannel" channel="messagesChannel" twitter-template="twitterTemplate">
+	</int-twitter:outbound-channel-adapter>
+
+	<int:service-activator id="linkedin" input-channel="messagesChannel">
+		<bean class="br.com.yanaga.tdc2012.soa.rss.integration.LinkedInService">
+			<constructor-arg ref="linkedInTemplate" />
+		</bean>
+	</int:service-activator>
+</beans>
